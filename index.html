@@ -17,6 +17,20 @@
         .upload-box:hover { border-color: #3498db; background-color: #f0f8ff; }
         input[type="file"] { display: none; }
         
+        /* ★★★ 新增：已上传文件列表样式 ★★★ */
+        .file-list { margin-top: 15px; display: flex; flex-wrap: wrap; gap: 10px; }
+        .file-tag { 
+            background-color: #e3f2fd; 
+            color: #1565c0; 
+            padding: 6px 12px; 
+            border-radius: 20px; 
+            font-size: 13px; 
+            border: 1px solid #bbdefb;
+            display: flex;
+            align-items: center;
+        }
+        .file-tag::before { content: "📄"; margin-right: 5px; }
+
         /* 输入框布局 */
         .input-group { display: flex; gap: 15px; margin-bottom: 15px; }
         .input-field { flex: 1; }
@@ -40,20 +54,17 @@
         th { background-color: #f8f9fa; color: #2c3e50; }
         tr:nth-child(even) { background-color: #f9f9f9; }
         
-        /* ★★★ 新增：复制功能的样式 ★★★ */
-        /* 1. 给可复制的格子加鼠标手势和相对定位 */
+        /* 复制功能的样式 */
         .copy-cell { 
             cursor: pointer; 
             position: relative; 
             transition: background-color 0.2s;
         }
-        /* 2. 鼠标悬停时变色 */
         .copy-cell:hover { 
-            background-color: #e3f2fd !important; /* 浅蓝色背景 */
+            background-color: #e3f2fd !important; 
             color: #1976d2; 
             font-weight: bold;
         }
-        /* 3. 鼠标悬停时显示“点击复制”小标签 */
         .copy-cell:hover::after {
             content: "点击复制";
             position: absolute;
@@ -64,14 +75,12 @@
             color: white;
             padding: 2px 5px;
             border-radius: 3px;
-            pointer-events: none; /* 让鼠标事件穿透这个标签 */
+            pointer-events: none; 
         }
-        /* 4. 点击瞬间的效果 */
         .copy-cell:active {
             background-color: #bbdefb !important;
         }
 
-        /* 表格列宽 */
         th:nth-child(1) { width: 20%; } /* 品号 */
         th:nth-child(2) { width: 20%; } /* 品名 */
         th:nth-child(3) { width: 40%; } /* 规格 */
@@ -79,30 +88,29 @@
 
         .highlight { background-color: #fff3cd; color: #856404; }
 
-        /* ★★★ 新增：复制成功的提示框 (Toast) ★★★ */
+        /* 复制成功的提示框 (Toast) */
         #toast {
-            visibility: hidden; /* 默认隐藏 */
+            visibility: hidden;
             min-width: 200px;
-            background-color: #333; /* 黑底 */
-            color: #fff; /* 白字 */
+            background-color: #333;
+            color: #fff;
             text-align: center;
             border-radius: 4px;
             padding: 12px;
-            position: fixed; /* 固定在屏幕位置 */
+            position: fixed;
             z-index: 1000;
             left: 50%;
             bottom: 30px;
-            transform: translateX(-50%); /* 居中 */
+            transform: translateX(-50%);
             font-size: 14px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.3);
             opacity: 0;
             transition: opacity 0.3s, bottom 0.3s;
         }
-        /* 显示时的状态 */
         #toast.show {
             visibility: visible;
             opacity: 1;
-            bottom: 50px; /* 稍微向上浮动一点 */
+            bottom: 50px;
         }
     </style>
 </head>
@@ -117,6 +125,9 @@
             <span id="fileLabel">点击选择文件 (或将文件拖拽至此)</span>
             <input type="file" id="fileInput" multiple accept=".xls,.xlsx,.csv" onchange="handleFiles(this.files)">
         </div>
+        
+        <div id="fileList" class="file-list"></div>
+        
         <div id="status">等待上传...</div>
     </div>
 
@@ -154,6 +165,19 @@
     async function handleFiles(files) {
         if (files.length === 0) return;
         globalDB = []; 
+        
+        // ★★★ 更新UI：显示文件名 ★★★
+        const fileListDiv = document.getElementById('fileList');
+        fileListDiv.innerHTML = ""; // 清空旧列表
+        
+        // 遍历并在界面上创建标签
+        Array.from(files).forEach(file => {
+            const tag = document.createElement("span");
+            tag.className = "file-tag";
+            tag.innerText = file.name; // 显示文件名
+            fileListDiv.appendChild(tag);
+        });
+
         document.getElementById('status').innerText = `正在解析 ${files.length} 个文件，请稍候...`;
         document.getElementById('fileLabel').innerText = `已选择 ${files.length} 个文件`;
         document.getElementById('searchBtn').disabled = true;
@@ -264,8 +288,6 @@
         let html = `<h3>✅ 找到 ${results.length} 条记录 (点击内容可复制)：</h3>`;
         html += `<table><thead><tr><th>品号</th><th>品名</th><th>规格</th><th>来源文件</th></tr></thead><tbody>`;
         
-        // ★★★ 修改点：添加 class="copy-cell" 和 onclick="handleCopy(this)" ★★★
-        // 只在 品号、品名、规格 这三列加，来源文件列通常不需要复制
         results.forEach(item => {
             html += `<tr>
                 <td class="copy-cell ${pnQuery && String(item.pn).toLowerCase().includes(pnQuery) ? 'highlight' : ''}" 
@@ -292,22 +314,17 @@
         document.getElementById('resultArea').innerHTML = ''; 
     }
 
-    // ★★★ 新增：点击复制处理函数 ★★★
+    // 点击复制处理函数
     function handleCopy(element) {
         const text = element.innerText;
         if (!text) return;
-
-        // 使用最稳健的复制方法（兼容本地文件双击打开）
         copyToClipboard(text);
     }
 
-    // 强力复制逻辑：优先使用现代API，失败则回退到传统方法
+    // 强力复制逻辑
     function copyToClipboard(text) {
-        // 创建一个临时的文本域
         const textArea = document.createElement("textarea");
         textArea.value = text;
-        
-        // 把输入框藏在屏幕外面，防止视觉干扰
         textArea.style.position = "fixed";
         textArea.style.left = "-9999px";
         textArea.style.top = "0";
@@ -317,12 +334,10 @@
         textArea.select();
 
         try {
-            // 尝试执行浏览器原生的“复制”命令
             const successful = document.execCommand('copy');
             if (successful) {
                 showToast("✅ 已复制: " + text);
             } else {
-                // 如果 execCommand 失败，尝试现代 API
                 useNavigatorClipboard(text);
             }
         } catch (err) {
@@ -333,7 +348,6 @@
         document.body.removeChild(textArea);
     }
 
-    // 现代 API 复制（备选方案）
     function useNavigatorClipboard(text) {
         if (navigator.clipboard) {
             navigator.clipboard.writeText(text)
@@ -344,12 +358,10 @@
         }
     }
 
-    // 显示提示消息 (Toast)
     function showToast(msg) {
         const toast = document.getElementById("toast");
         toast.innerText = msg;
         toast.className = "show";
-        // 2秒后自动消失
         if (window.toastTimeout) clearTimeout(window.toastTimeout);
         window.toastTimeout = setTimeout(() => { 
             toast.className = toast.className.replace("show", ""); 
