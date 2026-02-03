@@ -17,23 +17,17 @@
         .upload-box:hover { border-color: #3498db; background-color: #f0f8ff; }
         input[type="file"] { display: none; }
         
-        /* 输入框布局 - 3列 */
+        /* 输入框布局 */
         .input-group { display: flex; gap: 15px; margin-bottom: 15px; }
         .input-field { flex: 1; }
         input[type="text"] { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
         
-        /* 按钮组容器 */
+        /* 按钮组 */
         .btn-group { display: flex; gap: 15px; }
-
-        /* 按钮通用样式 */
         button { border: none; padding: 12px 25px; border-radius: 4px; cursor: pointer; font-size: 16px; transition: 0.3s; flex: 1; }
-        
-        /* 查询按钮 (蓝色) */
         .btn-primary { background-color: #3498db; color: white; }
         .btn-primary:hover { background-color: #2980b9; }
         .btn-primary:disabled { background-color: #ccc; cursor: not-allowed; }
-
-        /* 清空按钮 (灰色) */
         .btn-secondary { background-color: #95a5a6; color: white; }
         .btn-secondary:hover { background-color: #7f8c8d; }
 
@@ -46,13 +40,54 @@
         th { background-color: #f8f9fa; color: #2c3e50; }
         tr:nth-child(even) { background-color: #f9f9f9; }
         
+        /* ★★★ 新增：可点击复制的单元格样式 ★★★ */
+        td.copyable { cursor: pointer; position: relative; transition: 0.2s; }
+        td.copyable:hover { background-color: #e3f2fd; color: #1976d2; font-weight: 500; }
+        td.copyable:active { background-color: #bbdefb; }
+        /* 简单的提示文字（CSS Tooltip） */
+        td.copyable:hover::after {
+            content: "点击复制";
+            position: absolute;
+            right: 5px;
+            top: 5px;
+            font-size: 10px;
+            color: #1976d2;
+            background: rgba(255,255,255,0.8);
+            padding: 2px 4px;
+            border-radius: 3px;
+            pointer-events: none;
+        }
+
         /* 列宽控制 */
         th:nth-child(1) { width: 20%; } /* 品号 */
         th:nth-child(2) { width: 20%; } /* 品名 */
         th:nth-child(3) { width: 40%; } /* 规格 */
         th:nth-child(4) { width: 20%; } /* 来源 */
 
-        .highlight { background-color: #fff3cd; font-weight: bold; color: #856404; }
+        .highlight { background-color: #fff3cd; color: #856404; }
+
+        /* ★★★ 复制成功提示框 (Toast) ★★★ */
+        #toast {
+            visibility: hidden;
+            min-width: 200px;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            border-radius: 4px;
+            padding: 12px;
+            position: fixed;
+            z-index: 100;
+            left: 50%;
+            bottom: 30px;
+            transform: translateX(-50%);
+            font-size: 14px;
+            opacity: 0;
+            transition: opacity 0.5s;
+        }
+        #toast.show {
+            visibility: visible;
+            opacity: 0.9;
+        }
     </style>
 </head>
 <body>
@@ -94,6 +129,8 @@
     </div>
 </div>
 
+<div id="toast">已复制到剪贴板</div>
+
 <script>
     let globalDB = [];
 
@@ -110,7 +147,6 @@
         
         try {
             await Promise.all(promises);
-            // 去重
             const uniqueMap = new Map();
             globalDB.forEach(item => uniqueMap.set(item.pn, item));
             globalDB = Array.from(uniqueMap.values());
@@ -144,7 +180,7 @@
         });
     }
 
-    // 提取数据的核心逻辑 (包含品号、品名、规格)
+    // 核心提取逻辑
     function extractBlockData(fileName, rows) {
         let currentPN = null;
         let currentName = ""; 
@@ -164,7 +200,6 @@
                         }
                     }
                 }
-
                 // 找品名
                 if (currentPN) {
                    if (val.includes("品名") && (val.includes(":") || val.includes("："))) {
@@ -176,7 +211,6 @@
                         }
                     }
                 }
-
                 // 找规格
                 if (currentPN) {
                     if (val.includes("规格") && (val.includes(":") || val.includes("："))) {
@@ -221,14 +255,21 @@
             return;
         }
 
-        let html = `<h3>✅ 找到 ${results.length} 条记录：</h3>`;
+        let html = `<h3>✅ 找到 ${results.length} 条记录 (点击表格内容可复制)：</h3>`;
         html += `<table><thead><tr><th>品号</th><th>品名</th><th>规格</th><th>来源文件</th></tr></thead><tbody>`;
         
+        // ★★★ 核心修改：添加 copyable 类和 onclick 事件 ★★★
         results.forEach(item => {
             html += `<tr>
-                <td class="${pnQuery && String(item.pn).toLowerCase().includes(pnQuery) ? 'highlight' : ''}">${item.pn}</td>
-                <td class="${nameQuery && String(item.name).toLowerCase().includes(nameQuery) ? 'highlight' : ''}">${item.name}</td>
-                <td class="${specQuery && String(item.spec).toLowerCase().includes(specQuery) ? 'highlight' : ''}">${item.spec}</td>
+                <td class="copyable ${pnQuery && String(item.pn).toLowerCase().includes(pnQuery) ? 'highlight' : ''}" 
+                    onclick="copyToClipboard(this)">${item.pn}</td>
+                
+                <td class="copyable ${nameQuery && String(item.name).toLowerCase().includes(nameQuery) ? 'highlight' : ''}" 
+                    onclick="copyToClipboard(this)">${item.name}</td>
+                
+                <td class="copyable ${specQuery && String(item.spec).toLowerCase().includes(specQuery) ? 'highlight' : ''}" 
+                    onclick="copyToClipboard(this)">${item.spec}</td>
+                
                 <td>${item.file}</td>
             </tr>`;
         });
@@ -237,16 +278,41 @@
         resultDiv.innerHTML = html;
     }
 
-    // ★★★ 新增功能：清空输入框和结果 ★★★
+    // 清空功能
     function clearInputs() {
-        // 清空三个输入框
         document.getElementById('pnInput').value = '';
         document.getElementById('nameInput').value = '';
         document.getElementById('specInput').value = '';
-        
-        // 可选：是否同时也清空下方的搜索结果？
-        // 如果想保留结果只清空框，注释掉下面这一行即可。
         document.getElementById('resultArea').innerHTML = ''; 
+    }
+
+    // ★★★ 新增：复制功能 ★★★
+    function copyToClipboard(element) {
+        const text = element.innerText;
+        
+        // 使用浏览器API复制
+        navigator.clipboard.writeText(text).then(() => {
+            showToast(`已复制: ${text}`);
+        }).catch(err => {
+            console.error('复制失败', err);
+            // 备用方案（兼容旧浏览器）
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+            showToast(`已复制: ${text}`);
+        });
+    }
+
+    // 显示提示框
+    function showToast(message) {
+        const toast = document.getElementById("toast");
+        toast.innerText = message;
+        toast.className = "show";
+        // 2.5秒后自动消失
+        setTimeout(function(){ toast.className = toast.className.replace("show", ""); }, 2500);
     }
 </script>
 
