@@ -40,25 +40,38 @@
         th { background-color: #f8f9fa; color: #2c3e50; }
         tr:nth-child(even) { background-color: #f9f9f9; }
         
-        /* ★★★ 新增：可点击复制的单元格样式 ★★★ */
-        td.copyable { cursor: pointer; position: relative; transition: 0.2s; }
-        td.copyable:hover { background-color: #e3f2fd; color: #1976d2; font-weight: 500; }
-        td.copyable:active { background-color: #bbdefb; }
-        /* 简单的提示文字（CSS Tooltip） */
-        td.copyable:hover::after {
+        /* ★★★ 新增：复制功能的样式 ★★★ */
+        /* 1. 给可复制的格子加鼠标手势和相对定位 */
+        .copy-cell { 
+            cursor: pointer; 
+            position: relative; 
+            transition: background-color 0.2s;
+        }
+        /* 2. 鼠标悬停时变色 */
+        .copy-cell:hover { 
+            background-color: #e3f2fd !important; /* 浅蓝色背景 */
+            color: #1976d2; 
+            font-weight: bold;
+        }
+        /* 3. 鼠标悬停时显示“点击复制”小标签 */
+        .copy-cell:hover::after {
             content: "点击复制";
             position: absolute;
-            right: 5px;
-            top: 5px;
+            right: 2px;
+            top: 2px;
             font-size: 10px;
-            color: #1976d2;
-            background: rgba(255,255,255,0.8);
-            padding: 2px 4px;
+            background: #1976d2;
+            color: white;
+            padding: 2px 5px;
             border-radius: 3px;
-            pointer-events: none;
+            pointer-events: none; /* 让鼠标事件穿透这个标签 */
+        }
+        /* 4. 点击瞬间的效果 */
+        .copy-cell:active {
+            background-color: #bbdefb !important;
         }
 
-        /* 列宽控制 */
+        /* 表格列宽 */
         th:nth-child(1) { width: 20%; } /* 品号 */
         th:nth-child(2) { width: 20%; } /* 品名 */
         th:nth-child(3) { width: 40%; } /* 规格 */
@@ -66,27 +79,30 @@
 
         .highlight { background-color: #fff3cd; color: #856404; }
 
-        /* ★★★ 复制成功提示框 (Toast) ★★★ */
+        /* ★★★ 新增：复制成功的提示框 (Toast) ★★★ */
         #toast {
-            visibility: hidden;
+            visibility: hidden; /* 默认隐藏 */
             min-width: 200px;
-            background-color: #333;
-            color: #fff;
+            background-color: #333; /* 黑底 */
+            color: #fff; /* 白字 */
             text-align: center;
             border-radius: 4px;
             padding: 12px;
-            position: fixed;
-            z-index: 100;
+            position: fixed; /* 固定在屏幕位置 */
+            z-index: 1000;
             left: 50%;
             bottom: 30px;
-            transform: translateX(-50%);
+            transform: translateX(-50%); /* 居中 */
             font-size: 14px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
             opacity: 0;
-            transition: opacity 0.5s;
+            transition: opacity 0.3s, bottom 0.3s;
         }
+        /* 显示时的状态 */
         #toast.show {
             visibility: visible;
-            opacity: 0.9;
+            opacity: 1;
+            bottom: 50px; /* 稍微向上浮动一点 */
         }
     </style>
 </head>
@@ -137,20 +153,17 @@
     // 处理文件上传
     async function handleFiles(files) {
         if (files.length === 0) return;
-        
         globalDB = []; 
         document.getElementById('status').innerText = `正在解析 ${files.length} 个文件，请稍候...`;
         document.getElementById('fileLabel').innerText = `已选择 ${files.length} 个文件`;
         document.getElementById('searchBtn').disabled = true;
 
         const promises = Array.from(files).map(file => readFile(file));
-        
         try {
             await Promise.all(promises);
             const uniqueMap = new Map();
             globalDB.forEach(item => uniqueMap.set(item.pn, item));
             globalDB = Array.from(uniqueMap.values());
-
             document.getElementById('status').innerText = `✅ 解析完成！共建立 ${globalDB.length} 条物料索引。`;
             document.getElementById('status').style.color = "green";
             document.getElementById('searchBtn').disabled = false;
@@ -161,7 +174,6 @@
         }
     }
 
-    // 读取单个文件
     function readFile(file) {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
@@ -180,17 +192,14 @@
         });
     }
 
-    // 核心提取逻辑
     function extractBlockData(fileName, rows) {
         let currentPN = null;
         let currentName = ""; 
-
         rows.forEach(row => {
             row.forEach((cell, colIndex) => {
                 if (!cell) return;
                 let val = String(cell).trim().replace(/\s/g, ""); 
-
-                // 找品号
+                
                 if (val.includes("品号") && (val.includes(":") || val.includes("："))) {
                     if (colIndex + 1 < row.length) {
                         let potentialPN = String(row[colIndex + 1]).trim();
@@ -200,7 +209,6 @@
                         }
                     }
                 }
-                // 找品名
                 if (currentPN) {
                    if (val.includes("品名") && (val.includes(":") || val.includes("："))) {
                         if (colIndex + 1 < row.length) {
@@ -211,7 +219,6 @@
                         }
                     }
                 }
-                // 找规格
                 if (currentPN) {
                     if (val.includes("规格") && (val.includes(":") || val.includes("："))) {
                         if (colIndex + 1 < row.length) {
@@ -231,7 +238,6 @@
         });
     }
 
-    // 执行查询
     function searchData() {
         const pnQuery = document.getElementById('pnInput').value.toLowerCase().trim();
         const nameQuery = document.getElementById('nameInput').value.toLowerCase().trim(); 
@@ -255,20 +261,21 @@
             return;
         }
 
-        let html = `<h3>✅ 找到 ${results.length} 条记录 (点击表格内容可复制)：</h3>`;
+        let html = `<h3>✅ 找到 ${results.length} 条记录 (点击内容可复制)：</h3>`;
         html += `<table><thead><tr><th>品号</th><th>品名</th><th>规格</th><th>来源文件</th></tr></thead><tbody>`;
         
-        // ★★★ 核心修改：添加 copyable 类和 onclick 事件 ★★★
+        // ★★★ 修改点：添加 class="copy-cell" 和 onclick="handleCopy(this)" ★★★
+        // 只在 品号、品名、规格 这三列加，来源文件列通常不需要复制
         results.forEach(item => {
             html += `<tr>
-                <td class="copyable ${pnQuery && String(item.pn).toLowerCase().includes(pnQuery) ? 'highlight' : ''}" 
-                    onclick="copyToClipboard(this)">${item.pn}</td>
+                <td class="copy-cell ${pnQuery && String(item.pn).toLowerCase().includes(pnQuery) ? 'highlight' : ''}" 
+                    onclick="handleCopy(this)">${item.pn}</td>
                 
-                <td class="copyable ${nameQuery && String(item.name).toLowerCase().includes(nameQuery) ? 'highlight' : ''}" 
-                    onclick="copyToClipboard(this)">${item.name}</td>
+                <td class="copy-cell ${nameQuery && String(item.name).toLowerCase().includes(nameQuery) ? 'highlight' : ''}" 
+                    onclick="handleCopy(this)">${item.name}</td>
                 
-                <td class="copyable ${specQuery && String(item.spec).toLowerCase().includes(specQuery) ? 'highlight' : ''}" 
-                    onclick="copyToClipboard(this)">${item.spec}</td>
+                <td class="copy-cell ${specQuery && String(item.spec).toLowerCase().includes(specQuery) ? 'highlight' : ''}" 
+                    onclick="handleCopy(this)">${item.spec}</td>
                 
                 <td>${item.file}</td>
             </tr>`;
@@ -278,7 +285,6 @@
         resultDiv.innerHTML = html;
     }
 
-    // 清空功能
     function clearInputs() {
         document.getElementById('pnInput').value = '';
         document.getElementById('nameInput').value = '';
@@ -286,33 +292,68 @@
         document.getElementById('resultArea').innerHTML = ''; 
     }
 
-    // ★★★ 新增：复制功能 ★★★
-    function copyToClipboard(element) {
+    // ★★★ 新增：点击复制处理函数 ★★★
+    function handleCopy(element) {
         const text = element.innerText;
-        
-        // 使用浏览器API复制
-        navigator.clipboard.writeText(text).then(() => {
-            showToast(`已复制: ${text}`);
-        }).catch(err => {
-            console.error('复制失败', err);
-            // 备用方案（兼容旧浏览器）
-            const textarea = document.createElement('textarea');
-            textarea.value = text;
-            document.body.appendChild(textarea);
-            textarea.select();
-            document.execCommand('copy');
-            document.body.removeChild(textarea);
-            showToast(`已复制: ${text}`);
-        });
+        if (!text) return;
+
+        // 使用最稳健的复制方法（兼容本地文件双击打开）
+        copyToClipboard(text);
     }
 
-    // 显示提示框
-    function showToast(message) {
+    // 强力复制逻辑：优先使用现代API，失败则回退到传统方法
+    function copyToClipboard(text) {
+        // 创建一个临时的文本域
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        
+        // 把输入框藏在屏幕外面，防止视觉干扰
+        textArea.style.position = "fixed";
+        textArea.style.left = "-9999px";
+        textArea.style.top = "0";
+        document.body.appendChild(textArea);
+        
+        textArea.focus();
+        textArea.select();
+
+        try {
+            // 尝试执行浏览器原生的“复制”命令
+            const successful = document.execCommand('copy');
+            if (successful) {
+                showToast("✅ 已复制: " + text);
+            } else {
+                // 如果 execCommand 失败，尝试现代 API
+                useNavigatorClipboard(text);
+            }
+        } catch (err) {
+            console.error('Fallback copy failed', err);
+            useNavigatorClipboard(text);
+        }
+        
+        document.body.removeChild(textArea);
+    }
+
+    // 现代 API 复制（备选方案）
+    function useNavigatorClipboard(text) {
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(text)
+                .then(() => showToast("✅ 已复制: " + text))
+                .catch(() => alert("复制失败，请手动选择文字复制。"));
+        } else {
+            alert("复制失败，请手动选择文字复制。");
+        }
+    }
+
+    // 显示提示消息 (Toast)
+    function showToast(msg) {
         const toast = document.getElementById("toast");
-        toast.innerText = message;
+        toast.innerText = msg;
         toast.className = "show";
-        // 2.5秒后自动消失
-        setTimeout(function(){ toast.className = toast.className.replace("show", ""); }, 2500);
+        // 2秒后自动消失
+        if (window.toastTimeout) clearTimeout(window.toastTimeout);
+        window.toastTimeout = setTimeout(() => { 
+            toast.className = toast.className.replace("show", ""); 
+        }, 2000);
     }
 </script>
 
