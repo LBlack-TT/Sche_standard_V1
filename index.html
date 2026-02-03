@@ -3,155 +3,146 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>企业物料反查系统 (Web版)</title>
+    <title>企业物料反查系统 (V2.0 增强版)</title>
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
+    
     <style>
         body { font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif; max-width: 1000px; margin: 0 auto; padding: 20px; background-color: #f5f7fa; color: #333; }
         .container { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-        h1 { color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 10px; }
-        .section { margin-bottom: 25px; }
-        label { display: block; font-weight: bold; margin-bottom: 8px; color: #555; }
+        h1 { color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
         
-        /* 上传区域样式 */
-        .upload-box { border: 2px dashed #ccc; padding: 20px; text-align: center; border-radius: 5px; cursor: pointer; transition: 0.3s; }
-        .upload-box:hover { border-color: #3498db; background-color: #f0f8ff; }
+        /* 顶部数据库状态标签 */
+        .db-status { font-size: 14px; font-weight: normal; padding: 5px 10px; border-radius: 4px; background: #eee; color: #666; }
+        .db-status.active { background: #e8f5e9; color: #2e7d32; border: 1px solid #c8e6c9; }
+
+        .section { margin-bottom: 25px; border-bottom: 1px dashed #eee; padding-bottom: 20px; }
+        .section:last-child { border-bottom: none; }
+        label { display: block; font-weight: bold; margin-bottom: 10px; color: #2c3e50; font-size: 1.1em; }
+        
+        .upload-box { border: 2px dashed #3498db; background-color: #f0f8ff; padding: 20px; text-align: center; border-radius: 5px; cursor: pointer; transition: 0.3s; margin-bottom: 15px; }
+        .upload-box:hover { background-color: #e1f5fe; }
         input[type="file"] { display: none; }
         
-        /* ★★★ 新增：已上传文件列表样式 ★★★ */
-        .file-list { margin-top: 15px; display: flex; flex-wrap: wrap; gap: 10px; }
-        .file-tag { 
-            background-color: #e3f2fd; 
-            color: #1565c0; 
-            padding: 6px 12px; 
-            border-radius: 20px; 
-            font-size: 13px; 
-            border: 1px solid #bbdefb;
-            display: flex;
-            align-items: center;
+        /* ★★★ 新增：更明显的文件列表样式 ★★★ */
+        .file-list-container {
+            background: #fafafa;
+            border: 1px solid #eee;
+            border-radius: 5px;
+            padding: 10px;
+            margin-top: 10px;
+            max-height: 150px;
+            overflow-y: auto;
         }
-        .file-tag::before { content: "📄"; margin-right: 5px; }
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            border-bottom: 1px solid #eee;
+            font-size: 14px;
+        }
+        .file-item:last-child { border-bottom: none; }
+        .file-item:hover { background-color: #fff; }
+        .file-name { font-weight: 500; color: #333; display: flex; align-items: center; }
+        .file-name::before { content: "📄"; margin-right: 8px; }
+        .file-info { color: #888; font-size: 12px; }
 
         /* 输入框布局 */
         .input-group { display: flex; gap: 15px; margin-bottom: 15px; }
         .input-field { flex: 1; }
-        input[type="text"] { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        input[type="text"] { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 15px; }
+        input[type="text"]:focus { border-color: #3498db; outline: none; }
         
         /* 按钮组 */
         .btn-group { display: flex; gap: 15px; }
         button { border: none; padding: 12px 25px; border-radius: 4px; cursor: pointer; font-size: 16px; transition: 0.3s; flex: 1; }
+        
         .btn-primary { background-color: #3498db; color: white; }
         .btn-primary:hover { background-color: #2980b9; }
         .btn-primary:disabled { background-color: #ccc; cursor: not-allowed; }
+        
         .btn-secondary { background-color: #95a5a6; color: white; }
         .btn-secondary:hover { background-color: #7f8c8d; }
 
-        /* 状态提示 */
-        #status { margin-top: 10px; font-size: 14px; color: #666; height: 20px; }
+        .btn-danger { background-color: #ff6b6b; color: white; flex: 0; white-space: nowrap; font-size: 13px; padding: 8px 15px; }
+        .btn-danger:hover { background-color: #fa5252; }
+
+        #status { margin-top: 10px; font-size: 14px; color: #666; display: flex; justify-content: space-between; align-items: center; }
         
-        /* 结果表格 */
         table { width: 100%; border-collapse: collapse; margin-top: 20px; table-layout: fixed; }
-        th, td { border: 1px solid #eee; padding: 10px; text-align: left; word-wrap: break-word; }
-        th { background-color: #f8f9fa; color: #2c3e50; }
-        tr:nth-child(even) { background-color: #f9f9f9; }
+        th, td { border: 1px solid #eee; padding: 12px; text-align: left; word-wrap: break-word; }
+        th { background-color: #f8f9fa; color: #2c3e50; font-weight: 600; }
+        tr:nth-child(even) { background-color: #fcfcfc; }
         
-        /* 复制功能的样式 */
-        .copy-cell { 
-            cursor: pointer; 
-            position: relative; 
-            transition: background-color 0.2s;
-        }
-        .copy-cell:hover { 
-            background-color: #e3f2fd !important; 
-            color: #1976d2; 
-            font-weight: bold;
-        }
+        /* 复制样式 */
+        .copy-cell { cursor: pointer; position: relative; transition: background-color 0.2s; }
+        .copy-cell:hover { background-color: #e3f2fd !important; color: #1976d2; font-weight: bold; }
         .copy-cell:hover::after {
-            content: "点击复制";
-            position: absolute;
-            right: 2px;
-            top: 2px;
-            font-size: 10px;
-            background: #1976d2;
-            color: white;
-            padding: 2px 5px;
-            border-radius: 3px;
-            pointer-events: none; 
+            content: "点击复制"; position: absolute; right: 5px; top: 50%; transform: translateY(-50%); font-size: 11px;
+            background: #1976d2; color: white; padding: 2px 6px; border-radius: 3px; pointer-events: none;
         }
-        .copy-cell:active {
-            background-color: #bbdefb !important;
-        }
+        .copy-cell:active { background-color: #bbdefb !important; }
 
-        th:nth-child(1) { width: 20%; } /* 品号 */
-        th:nth-child(2) { width: 20%; } /* 品名 */
-        th:nth-child(3) { width: 40%; } /* 规格 */
-        th:nth-child(4) { width: 20%; } /* 来源 */
+        th:nth-child(1) { width: 20%; }
+        th:nth-child(2) { width: 20%; }
+        th:nth-child(3) { width: 40%; }
+        th:nth-child(4) { width: 20%; }
 
-        .highlight { background-color: #fff3cd; color: #856404; }
+        .highlight { background-color: #fff3cd; color: #856404; font-weight: bold; }
 
-        /* 复制成功的提示框 (Toast) */
         #toast {
-            visibility: hidden;
-            min-width: 200px;
-            background-color: #333;
-            color: #fff;
-            text-align: center;
-            border-radius: 4px;
-            padding: 12px;
-            position: fixed;
-            z-index: 1000;
-            left: 50%;
-            bottom: 30px;
-            transform: translateX(-50%);
-            font-size: 14px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            opacity: 0;
-            transition: opacity 0.3s, bottom 0.3s;
+            visibility: hidden; min-width: 200px; background-color: #333; color: #fff; text-align: center;
+            border-radius: 4px; padding: 12px; position: fixed; z-index: 1000; left: 50%; bottom: 40px;
+            transform: translateX(-50%); font-size: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            opacity: 0; transition: opacity 0.3s, bottom 0.3s;
         }
-        #toast.show {
-            visibility: visible;
-            opacity: 1;
-            bottom: 50px;
-        }
+        #toast.show { visibility: visible; opacity: 1; bottom: 60px; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>🔎 企业系统代码反查工具</h1>
+    <h1>
+        🔎 企业物料反查系统
+        <span id="dbIndicator" class="db-status">数据库未连接</span>
+    </h1>
     
     <div class="section">
-        <label>1. 上传 Excel/CSV 系统表 (支持多选)</label>
+        <label>1. 数据库管理 (自动记忆)</label>
+        
         <div class="upload-box" onclick="document.getElementById('fileInput').click()">
-            <span id="fileLabel">点击选择文件 (或将文件拖拽至此)</span>
+            <div style="font-size: 24px; margin-bottom: 5px;">📂</div>
+            <span id="fileLabel">点击上传 Excel/CSV 文件 (支持追加上传)</span>
             <input type="file" id="fileInput" multiple accept=".xls,.xlsx,.csv" onchange="handleFiles(this.files)">
         </div>
         
-        <div id="fileList" class="file-list"></div>
-        
-        <div id="status">等待上传...</div>
+        <label style="font-size: 14px; color: #666; margin-top: 15px;">📚 已归档文件列表：</label>
+        <div class="file-list-container" id="fileListContainer">
+            <div style="padding:10px; color:#999; text-align:center;">暂无文件，请上传...</div>
+        </div>
+
+        <div id="status">
+            <span id="statusText">正在检查本地缓存...</span>
+            <button class="btn-danger" onclick="clearDatabase()">🗑️ 清空所有数据</button>
+        </div>
     </div>
 
     <div class="section">
-        <label>2. 输入查询条件 (支持任意组合)</label>
+        <label>2. 输入查询条件</label>
         <div class="input-group">
-            <div class="input-field">
-                <input type="text" id="pnInput" placeholder="输入品号 (如 30101)">
-            </div>
-            <div class="input-field">
-                <input type="text" id="nameInput" placeholder="输入品名 (如 电阻)">
-            </div>
-            <div class="input-field">
-                <input type="text" id="specInput" placeholder="输入规格 (如 10k)">
-            </div>
+            <div class="input-field"><input type="text" id="pnInput" placeholder="输入品号"></div>
+            <div class="input-field"><input type="text" id="nameInput" placeholder="输入品名"></div>
+            <div class="input-field"><input type="text" id="specInput" placeholder="输入规格"></div>
         </div>
         
         <div class="btn-group">
-            <button id="searchBtn" class="btn-primary" onclick="searchData()" disabled>查询</button>
+            <button id="searchBtn" class="btn-primary" onclick="searchData()" disabled>开始查询</button>
             <button id="clearBtn" class="btn-secondary" onclick="clearInputs()">清空条件</button>
         </div>
     </div>
 
-    <div class="section">
+    <div class="section" style="border-bottom:none;">
         <div id="resultArea"></div>
     </div>
 </div>
@@ -159,57 +150,177 @@
 <div id="toast">已复制到剪贴板</div>
 
 <script>
-    let globalDB = [];
+    const DB_KEY = 'material_db_v2'; // 升级Key，确保数据结构最新
+    const FILES_KEY = 'material_files_v2';
+    
+    let globalDB = []; // 内存中的数据
+    let loadedFiles = []; // 内存中的文件列表 [{name: 'xx.xls', count: 100}]
 
-    // 处理文件上传
+    document.addEventListener('DOMContentLoaded', async function() {
+        await loadFromCache();
+    });
+
+    // --- 1. 缓存加载逻辑 ---
+    async function loadFromCache() {
+        try {
+            const dbData = await localforage.getItem(DB_KEY);
+            const filesData = await localforage.getItem(FILES_KEY);
+
+            if (dbData && dbData.length > 0) {
+                globalDB = dbData;
+                loadedFiles = filesData || [];
+                
+                updateUIState(true, `✅ 记忆库已就绪，共 ${globalDB.length} 条数据`);
+                renderFileList(); // 关键：加载后立刻渲染列表
+                document.getElementById('searchBtn').disabled = false;
+            } else {
+                updateUIState(false, "暂无本地数据，请上传文件");
+                renderFileList();
+            }
+        } catch (err) {
+            console.error("读取缓存失败", err);
+            updateUIState(false, "读取记忆失败");
+        }
+    }
+
+    async function saveToCache() {
+        try {
+            await localforage.setItem(DB_KEY, globalDB);
+            await localforage.setItem(FILES_KEY, loadedFiles);
+        } catch (err) {
+            alert("存储空间不足，可能无法记住本次上传的数据。");
+        }
+    }
+
+    async function clearDatabase() {
+        if(confirm("确定要清空所有数据和文件记录吗？")) {
+            await localforage.clear();
+            globalDB = [];
+            loadedFiles = [];
+            renderFileList();
+            document.getElementById('resultArea').innerHTML = "";
+            updateUIState(false, "记忆已清空");
+            document.getElementById('searchBtn').disabled = true;
+        }
+    }
+
+    function updateUIState(hasData, msg) {
+        const indicator = document.getElementById('dbIndicator');
+        const statusText = document.getElementById('statusText');
+        statusText.innerText = msg;
+        if (hasData) {
+            indicator.innerText = "🟢 已连接记忆库";
+            indicator.className = "db-status active";
+            statusText.style.color = "green";
+        } else {
+            indicator.innerText = "⚪ 空闲中";
+            indicator.className = "db-status";
+            statusText.style.color = "#666";
+        }
+    }
+
+    // --- 2. 核心：渲染文件列表 ---
+    function renderFileList() {
+        const container = document.getElementById('fileListContainer');
+        container.innerHTML = ""; // 清空当前显示
+        
+        if (loadedFiles.length === 0) {
+            container.innerHTML = '<div style="padding:10px; color:#999; text-align:center;">暂无文件，请上传...</div>';
+            return;
+        }
+
+        // 遍历并在界面上创建每一行
+        loadedFiles.forEach(file => {
+            const itemDiv = document.createElement("div");
+            itemDiv.className = "file-item";
+            
+            // 左侧：文件名
+            const nameSpan = document.createElement("span");
+            nameSpan.className = "file-name";
+            nameSpan.innerText = file.name;
+            
+            // 右侧：数据量信息
+            const infoSpan = document.createElement("span");
+            infoSpan.className = "file-info";
+            infoSpan.innerText = `含 ${file.count} 条数据`;
+            
+            itemDiv.appendChild(nameSpan);
+            itemDiv.appendChild(infoSpan);
+            container.appendChild(itemDiv);
+        });
+    }
+
+    // --- 3. 文件处理 (带统计功能) ---
     async function handleFiles(files) {
         if (files.length === 0) return;
-        globalDB = []; 
         
-        // ★★★ 更新UI：显示文件名 ★★★
-        const fileListDiv = document.getElementById('fileList');
-        fileListDiv.innerHTML = ""; // 清空旧列表
-        
-        // 遍历并在界面上创建标签
-        Array.from(files).forEach(file => {
-            const tag = document.createElement("span");
-            tag.className = "file-tag";
-            tag.innerText = file.name; // 显示文件名
-            fileListDiv.appendChild(tag);
-        });
-
-        document.getElementById('status').innerText = `正在解析 ${files.length} 个文件，请稍候...`;
-        document.getElementById('fileLabel').innerText = `已选择 ${files.length} 个文件`;
+        document.getElementById('statusText').innerText = `正在处理 ${files.length} 个新文件...`;
+        document.getElementById('statusText').style.color = "#e67e22";
         document.getElementById('searchBtn').disabled = true;
 
         const promises = Array.from(files).map(file => readFile(file));
+        
         try {
-            await Promise.all(promises);
-            const uniqueMap = new Map();
-            globalDB.forEach(item => uniqueMap.set(item.pn, item));
-            globalDB = Array.from(uniqueMap.values());
-            document.getElementById('status').innerText = `✅ 解析完成！共建立 ${globalDB.length} 条物料索引。`;
-            document.getElementById('status').style.color = "green";
-            document.getElementById('searchBtn').disabled = false;
+            const results = await Promise.all(promises);
+            // results 结构: [{fileName: 'a.xls', items: [...]}, {fileName: 'b.xls', items: [...]}]
+            
+            let addedCount = 0;
+
+            results.forEach(res => {
+                if (res.items.length > 0) {
+                    // 1. 追加数据
+                    globalDB = globalDB.concat(res.items);
+                    addedCount += res.items.length;
+
+                    // 2. 更新文件列表 (先删旧的同名记录，再加新的)
+                    loadedFiles = loadedFiles.filter(f => f.name !== res.fileName);
+                    loadedFiles.push({
+                        name: res.fileName,
+                        count: res.items.length
+                    });
+                }
+            });
+
+            if (addedCount > 0) {
+                // 3. 数据去重
+                const uniqueMap = new Map();
+                globalDB.forEach(item => uniqueMap.set(item.pn, item));
+                globalDB = Array.from(uniqueMap.values());
+
+                // 4. 保存并刷新界面
+                await saveToCache();
+                renderFileList(); // 更新列表显示
+                updateUIState(true, `✅ 成功追加 ${addedCount} 条数据！当前总计 ${globalDB.length} 条`);
+                document.getElementById('searchBtn').disabled = false;
+            } else {
+                document.getElementById('statusText').innerText = "⚠️ 未提取到有效数据，请检查文件格式";
+            }
         } catch (err) {
             console.error(err);
-            document.getElementById('status').innerText = "❌ 解析出错，请检查控制台日志。";
-            document.getElementById('status').style.color = "red";
+            document.getElementById('statusText').innerText = "❌ 解析出错";
         }
+        document.getElementById('fileInput').value = ''; // 重置 input
     }
 
     function readFile(file) {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = function(e) {
-                const data = new Uint8Array(e.target.result);
-                const workbook = XLSX.read(data, {type: 'array'});
-                workbook.SheetNames.forEach(sheetName => {
-                    const worksheet = workbook.Sheets[sheetName];
-                    const jsonData = XLSX.utils.sheet_to_json(worksheet, {header: 1});
-                    extractBlockData(file.name, jsonData);
-                });
-                resolve();
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, {type: 'array'});
+                    let allItems = [];
+                    workbook.SheetNames.forEach(sheetName => {
+                        const worksheet = workbook.Sheets[sheetName];
+                        const jsonData = XLSX.utils.sheet_to_json(worksheet, {header: 1});
+                        const items = extractBlockData(file.name, jsonData);
+                        allItems = allItems.concat(items);
+                    });
+                    // 返回文件名和对应的数据
+                    resolve({ fileName: file.name, items: allItems });
+                } catch (err) {
+                    reject(err);
+                }
             };
             reader.onerror = reject;
             reader.readAsArrayBuffer(file);
@@ -217,19 +328,18 @@
     }
 
     function extractBlockData(fileName, rows) {
+        let extracted = [];
         let currentPN = null;
         let currentName = ""; 
         rows.forEach(row => {
             row.forEach((cell, colIndex) => {
                 if (!cell) return;
                 let val = String(cell).trim().replace(/\s/g, ""); 
-                
                 if (val.includes("品号") && (val.includes(":") || val.includes("："))) {
                     if (colIndex + 1 < row.length) {
                         let potentialPN = String(row[colIndex + 1]).trim();
                         if (potentialPN && !potentialPN.includes("~") && potentialPN !== "undefined") {
-                            currentPN = potentialPN;
-                            currentName = ""; 
+                            currentPN = potentialPN; currentName = ""; 
                         }
                     }
                 }
@@ -248,7 +358,7 @@
                         if (colIndex + 1 < row.length) {
                             let specVal = String(row[colIndex + 1]).trim();
                             if (specVal && specVal !== "undefined") {
-                                globalDB.push({
+                                extracted.push({
                                     file: fileName,
                                     pn: currentPN,
                                     name: currentName, 
@@ -260,8 +370,10 @@
                 }
             });
         });
+        return extracted;
     }
 
+    // --- 4. 搜索与复制 (保持不变) ---
     function searchData() {
         const pnQuery = document.getElementById('pnInput').value.toLowerCase().trim();
         const nameQuery = document.getElementById('nameInput').value.toLowerCase().trim(); 
@@ -285,24 +397,20 @@
             return;
         }
 
-        let html = `<h3>✅ 找到 ${results.length} 条记录 (点击内容可复制)：</h3>`;
+        let html = `<h3>✅ 找到 ${results.length} 条记录：</h3>`;
         html += `<table><thead><tr><th>品号</th><th>品名</th><th>规格</th><th>来源文件</th></tr></thead><tbody>`;
         
         results.forEach(item => {
             html += `<tr>
                 <td class="copy-cell ${pnQuery && String(item.pn).toLowerCase().includes(pnQuery) ? 'highlight' : ''}" 
                     onclick="handleCopy(this)">${item.pn}</td>
-                
                 <td class="copy-cell ${nameQuery && String(item.name).toLowerCase().includes(nameQuery) ? 'highlight' : ''}" 
                     onclick="handleCopy(this)">${item.name}</td>
-                
                 <td class="copy-cell ${specQuery && String(item.spec).toLowerCase().includes(specQuery) ? 'highlight' : ''}" 
                     onclick="handleCopy(this)">${item.spec}</td>
-                
                 <td>${item.file}</td>
             </tr>`;
         });
-        
         html += `</tbody></table>`;
         resultDiv.innerHTML = html;
     }
@@ -314,37 +422,25 @@
         document.getElementById('resultArea').innerHTML = ''; 
     }
 
-    // 点击复制处理函数
     function handleCopy(element) {
         const text = element.innerText;
         if (!text) return;
         copyToClipboard(text);
     }
 
-    // 强力复制逻辑
     function copyToClipboard(text) {
         const textArea = document.createElement("textarea");
         textArea.value = text;
-        textArea.style.position = "fixed";
-        textArea.style.left = "-9999px";
-        textArea.style.top = "0";
+        textArea.style.position = "fixed"; textArea.style.left = "-9999px"; textArea.style.top = "0";
         document.body.appendChild(textArea);
-        
-        textArea.focus();
-        textArea.select();
-
+        textArea.focus(); textArea.select();
         try {
             const successful = document.execCommand('copy');
-            if (successful) {
-                showToast("✅ 已复制: " + text);
-            } else {
-                useNavigatorClipboard(text);
-            }
+            if (successful) showToast("✅ 已复制: " + text);
+            else useNavigatorClipboard(text);
         } catch (err) {
-            console.error('Fallback copy failed', err);
             useNavigatorClipboard(text);
         }
-        
         document.body.removeChild(textArea);
     }
 
@@ -352,10 +448,8 @@
         if (navigator.clipboard) {
             navigator.clipboard.writeText(text)
                 .then(() => showToast("✅ 已复制: " + text))
-                .catch(() => alert("复制失败，请手动选择文字复制。"));
-        } else {
-            alert("复制失败，请手动选择文字复制。");
-        }
+                .catch(() => alert("复制失败"));
+        } else alert("复制失败");
     }
 
     function showToast(msg) {
